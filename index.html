@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>お小遣い帳</title>
+    <style>
+        /* デザイン設定 */
+        :root {
+            --primary: #FF9AA2;
+            --secondary: #B5EAD7;
+            --bg: #FFF5F7;
+            --text: #4A4A4A;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Yu Gothic", sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px 20px 80px 20px; /* 下に余白を追加 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        h1 { font-size: 1.2rem; margin-bottom: 10px; color: #FF6F61; }
+        
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(255, 154, 162, 0.2);
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .points { font-size: 2.5rem; font-weight: bold; color: var(--primary); }
+        .unit { font-size: 1rem; color: #888; }
+
+        .calendar-controls {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 350px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px; /* スマホ用に隙間を調整 */
+            width: 100%;
+            max-width: 350px;
+        }
+        .day-header {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #888;
+            padding-bottom: 5px;
+        }
+        .day-cell {
+            background: white;
+            aspect-ratio: 1;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: transform 0.1s;
+        }
+        .day-cell:active { transform: scale(0.95); background-color: #f0f0f0; }
+        .day-cell.today { border: 2px solid var(--primary); }
+        .day-point-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--secondary);
+            border-radius: 50%;
+            margin-top: 2px;
+            display: none;
+        }
+        .day-cell.has-points .day-point-dot { display: block; background-color: var(--primary); }
+
+        .settings-btn {
+            margin-top: 30px;
+            background: white;
+            border: 1px solid #ddd;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* モーダル */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* 重なり順を最前面に */
+            backdrop-filter: blur(2px);
+        }
+        .modal {
+            background: white;
+            width: 85%;
+            max-width: 350px;
+            border-radius: 20px;
+            padding: 25px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .modal-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 20px; text-align: center; }
+        .close-btn {
+            position: absolute; top: 15px; right: 15px;
+            background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #888; padding: 5px;
+        }
+        
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            background: #FFF5F7;
+            padding: 12px;
+            border-radius: 12px;
+        }
+        .checklist-item input[type="checkbox"] {
+            transform: scale(1.5);
+            margin-right: 15px;
+            accent-color: var(--primary);
+        }
+        .task-info { flex-grow: 1; }
+        .task-name { font-weight: bold; display: block; font-size: 1rem; }
+        .task-pts { font-size: 0.85rem; color: #FF6F61; }
+
+        .setting-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .setting-row input[type="text"] { flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; /* ズーム防止 */ }
+        .setting-row input[type="number"] { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        
+        .add-btn { width: 100%; background: var(--secondary); border: none; padding: 12px; border-radius: 10px; color: #333; font-weight: bold; cursor: pointer; margin-top: 10px;}
+        .delete-btn { background: #ffcccb; border: none; padding: 0 12px; border-radius: 8px; cursor: pointer; font-size: 1.2rem; }
+        .save-btn { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 10px; font-size: 1rem; font-weight: bold; margin-top: 15px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h1>今月のポイント</h1>
+    <div class="summary-card">
+        <div class="points" id="totalPoints">0</div>
+        <div class="unit">ポイント</div>
+    </div>
+
+    <div class="calendar-controls">
+        <button onclick="changeMonth(-1)" style="background:none; border:none; font-size:1.5rem; padding:10px;">◀</button>
+        <div style="font-weight:bold; font-size:1.1rem;" id="currentMonthLabel">loading...</div>
+        <button onclick="changeMonth(1)" style="background:none; border:none; font-size:1.5rem; padding:10px;">▶</button>
+    </div>
+
+    <div class="calendar-grid">
+        <div class="day-header" style="color:#ff6f61">日</div><div class="day-header">月</div><div class="day-header">火</div>
+        <div class="day-header">水</div><div class="day-header">木</div><div class="day-header">金</div><div class="day-header" style="color:#6fa3ff">土</div>
+    </div>
+    <div class="calendar-grid" id="calendarDays"></div>
+
+    <button class="settings-btn" onclick="openSettings()">⚙️ リストを編集する</button>
+
+    <div class="modal-overlay" id="dayModal">
+        <div class="modal">
+            <button class="close-btn" onclick="closeModal('dayModal')">×</button>
+            <div class="modal-title" id="selectedDateLabel"></div>
+            <div id="taskList"></div>
+            <button class="save-btn" onclick="closeModal('dayModal')">OK</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <button class="close-btn" onclick="closeModal('settingsModal')">×</button>
+            <div class="modal-title">項目の設定</div>
+            <div id="settingsList" class="settings-list"></div>
+            <button class="add-btn" onclick="addNewTaskInput()">＋ 新しい項目を追加</button>
+            <button class="save-btn" onclick="saveSettings()">保存して閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        // 安全なデータ読み込み
+        let tasks = [];
+        let logs = {};
+        try {
+            tasks = JSON.parse(localStorage.getItem('myTasks')) || [
+                { id: 1, name: 'お皿洗い', points: 10 },
+                { id: 2, name: '宿題完了', points: 20 },
+                { id: 3, name: 'お風呂掃除', points: 30 }
+            ];
+            logs = JSON.parse(localStorage.getItem('myLogs')) || {};
+        } catch (e) {
+            console.error("Storage Error", e);
+            alert("ブラウザのプライベートモードでは保存できない場合があります。");
+        }
+
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth(); // 0始まり (0=1月)
+        let selectedDateStr = "";
+
+        // 初期実行
+        renderCalendar();
+        updateTotalPoints();
+
+        function renderCalendar() {
+            // ラベル更新
+            document.getElementById('currentMonthLabel').innerText = `${currentYear}年 ${currentMonth + 1}月`;
+            
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const lastDate = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            const container = document.getElementById('calendarDays');
+            container.innerHTML = "";
+
+            // 空白セル
+            for(let i=0; i<firstDay; i++) {
+                container.innerHTML += `<div></div>`;
+            }
+
+            // 今日の日付を取得（文字列比較用）
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+            // 日付セル生成
+            for(let d=1; d<=lastDate; d++) {
+                // キーとしての文字列生成 (YYYY-MM-DD)
+                const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                
+                const dayLog = logs[dateStr] || [];
+                const hasPoints = dayLog.length > 0;
+                const isToday = (dateStr === todayStr);
+
+                const cell = document.createElement('div');
+                cell.className = `day-cell ${hasPoints ? 'has-points' : ''} ${isToday ? 'today' : ''}`;
+                cell.onclick = function() { openDayModal(dateStr, d); }; // iPhone対応: 関数で包む
+                
+                // 土日の色付け
+                const dayOfWeek = new Date(currentYear, currentMonth, d).getDay();
+                let colorStyle = "";
+                if(dayOfWeek === 0) colorStyle = "color:#ff6f61;"; // 日
+                if(dayOfWeek === 6) colorStyle = "color:#6fa3ff;"; // 土
+
+                cell.innerHTML = `
+                    <span style="${colorStyle}">${d}</span>
+                    <div class="day-point-dot"></div>
+                `;
+                container.appendChild(cell);
+            }
+        }
+
+        function changeMonth(diff) {
+            currentMonth += diff;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            } else if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+            updateTotalPoints();
+        }
+
+        function openDayModal(dateStr, dayNum) {
+            selectedDateStr = dateStr;
+            document.getElementById('selectedDateLabel').innerText = `${currentMonth+1}月${dayNum}日 のやったこと`;
+            
+            const container = document.getElementById('taskList');
+            container.innerHTML = "";
+            
+            const currentLog = logs[dateStr] || [];
+
+            tasks.forEach(task => {
+                const isChecked = currentLog.includes(task.id);
+                const item = document.createElement('div');
+                item.className = 'checklist-item';
+                item.innerHTML = `
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleTask(${task.id}, this.checked)">
+                    <div class="task-info">
+                        <span class="task-name">${task.name}</span>
+                        <span class="task-pts">${task.points} P</span>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+
+            document.getElementById('dayModal').style.display = 'flex';
+        }
+
+        function toggleTask(taskId, isChecked) {
+            if (!logs[selectedDateStr]) logs[selectedDateStr] = [];
+            
+            if (isChecked) {
+                if (!logs[selectedDateStr].includes(taskId)) {
+                    logs[selectedDateStr].push(taskId);
+                }
+            } else {
+                logs[selectedDateStr] = logs[selectedDateStr].filter(id => id !== taskId);
+            }
+            
+            saveToStorage();
+            updateTotalPoints();
+            renderCalendar();
+        }
+
+        function updateTotalPoints() {
+            let total = 0;
+            // 現在表示中の月の合計を計算
+            // 文字列マッチングで計算する（日付オブジェクト変換によるバグ回避）
+            const prefix = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}`;
+
+            for (let dateKey in logs) {
+                if (dateKey.startsWith(prefix)) {
+                    const taskIds = logs[dateKey];
+                    taskIds.forEach(id => {
+                        const task = tasks.find(t => t.id === id);
+                        if (task) total += parseInt(task.points);
+                    });
+                }
+            }
+            document.getElementById('totalPoints').innerText = total;
+        }
+
+        // 設定関連
+        function openSettings() {
+            const container = document.getElementById('settingsList');
+            container.innerHTML = "";
+            tasks.forEach((task, index) => {
+                appendSettingRow(task.name, task.points);
+            });
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+
+        function appendSettingRow(name = "", points = "") {
+            const container = document.getElementById('settingsList');
+            const div = document.createElement('div');
+            div.className = 'setting-row';
+            div.innerHTML = `
+                <input type="text" placeholder="項目名" value="${name}" class="st-name">
+                <input type="number" placeholder="P" value="${points}" class="st-pts">
+                <button class="delete-btn" onclick="this.parentElement.remove()">🗑️</button>
+            `;
+            container.appendChild(div);
+        }
+
+        function addNewTaskInput() { appendSettingRow(); }
+
+        function saveSettings() {
+            const rows = document.querySelectorAll('.setting-row');
+            const newTasks = [];
+            rows.forEach((row, idx) => {
+                const name = row.querySelector('.st-name').value;
+                const points = row.querySelector('.st-pts').value;
+                if (name && points) {
+                    newTasks.push({
+                        id: Date.now() + idx,
+                        name: name,
+                        points: parseInt(points)
+                    });
+                }
+            });
+            tasks = newTasks;
+            saveToStorage('myTasks', tasks); // タスク保存時はキー指定が必要ですが、共通関数を使うため
+            localStorage.setItem('myTasks', JSON.stringify(tasks)); // 明示的に保存
+            
+            closeModal('settingsModal');
+            updateTotalPoints();
+        }
+
+        function saveToStorage() {
+            try {
+                localStorage.setItem('myLogs', JSON.stringify(logs));
+            } catch(e) {
+                alert("データの保存に失敗しました（容量オーバーまたはプライベートモード）");
+            }
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+    </script>
+</body>
+</html>
