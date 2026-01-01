@@ -7,10 +7,11 @@
     <style>
         /* --- デザイン設定 --- */
         :root {
-            --primary: #FF9AA2; /* ピンク */
-            --secondary: #B5EAD7; /* グリーン */
+            --primary: #FF9AA2;
+            --secondary: #B5EAD7;
             --bg: #FFF5F7;
             --text: #4A4A4A;
+            --line: #06C755;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
@@ -25,13 +26,7 @@
             min-height: 100vh;
         }
         
-        /* タイトル */
-        h1 { 
-            font-size: 1.2rem; 
-            margin-bottom: 10px; 
-            color: #FF6F61; 
-            font-weight: bold;
-        }
+        h1 { font-size: 1.2rem; margin-bottom: 10px; color: #FF6F61; font-weight: bold; }
         
         /* 合計ポイントカード */
         .summary-card {
@@ -43,12 +38,31 @@
             max-width: 350px;
             text-align: center;
             margin-bottom: 20px;
-            transition: all 0.3s ease;
         }
         .points { font-size: 3rem; font-weight: bold; color: var(--primary); line-height: 1; }
         .unit { font-size: 0.9rem; color: #888; margin-top: 5px;}
 
-        /* カレンダー操作エリア */
+        /* 報告ボタン */
+        .report-btn {
+            background-color: var(--line);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .report-btn:active { transform: scale(0.98); opacity: 0.9; }
+
+        /* カレンダー操作 */
         .calendar-controls {
             display: flex;
             justify-content: space-between;
@@ -90,8 +104,6 @@
         }
         .day-cell:active { transform: scale(0.95); background-color: #f0f0f0; }
         .day-cell.today { border: 2px solid var(--primary); }
-        
-        /* ドット（やったことある日） */
         .day-point-dot {
             width: 6px;
             height: 6px;
@@ -102,7 +114,6 @@
         }
         .day-cell.has-points .day-point-dot { display: block; background-color: var(--primary); }
 
-        /* 設定ボタン */
         .settings-btn {
             margin-top: 30px;
             background: white;
@@ -115,7 +126,7 @@
             color: #555;
         }
 
-        /* --- モーダル（ポップアップ） --- */
+        /* モーダル */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -143,7 +154,6 @@
             background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #888; padding: 5px;
         }
         
-        /* チェックリスト */
         .checklist-item {
             display: flex;
             align-items: center;
@@ -161,7 +171,6 @@
         .task-name { font-weight: bold; display: block; font-size: 1rem; }
         .task-pts { font-size: 0.85rem; color: #FF6F61; }
 
-        /* 設定画面 */
         .setting-row { display: flex; gap: 8px; margin-bottom: 10px; }
         .setting-row input[type="text"] { flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
         .setting-row input[type="number"] { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
@@ -178,6 +187,9 @@
     <div class="summary-card">
         <div class="points" id="totalPoints">0</div>
         <div class="unit">たまりました！</div>
+        <button class="report-btn" onclick="shareWeeklyReport()">
+            📅 1週間の報告をする
+        </button>
     </div>
 
     <div class="calendar-controls">
@@ -214,7 +226,7 @@
     </div>
 
     <script>
-        // --- データの読み込み ---
+        // --- データ管理 ---
         let tasks = [];
         let logs = {};
         try {
@@ -224,152 +236,157 @@
                 { id: 3, name: 'お風呂掃除', points: 30 }
             ];
             logs = JSON.parse(localStorage.getItem('myLogs')) || {};
-        } catch (e) {
-            console.error("Storage Error", e);
-        }
+        } catch (e) { console.error("Storage Error", e); }
 
         let currentYear = new Date().getFullYear();
-        let currentMonth = new Date().getMonth(); // 0=1月
+        let currentMonth = new Date().getMonth(); 
         let selectedDateStr = "";
 
-        // 最初に実行
+        // 初期化
         renderCalendar();
         updateTotalPoints();
 
-        // --- カレンダー描画 ---
-        function renderCalendar() {
-            // カレンダー上の年月表示
-            document.getElementById('currentMonthLabel').innerText = `${currentYear}年 ${currentMonth + 1}月`;
+        // --- 週次報告機能（賢いロジック） ---
+        function shareWeeklyReport() {
+            const today = new Date();
+            const dayOfWeek = today.getDay(); // 0=日, 1=月...
             
+            // 基準となる「月曜日」を決める
+            // 月曜日(1)なら、先週の月曜日(-7日)を基準にする
+            // それ以外なら、今週の月曜日を基準にする
+            let diffToMonday = 0;
+            if (dayOfWeek === 1) { // 月曜日の場合
+                diffToMonday = -7;
+            } else if (dayOfWeek === 0) { // 日曜日の場合
+                diffToMonday = -6;
+            } else { // 火〜土の場合
+                diffToMonday = 1 - dayOfWeek;
+            }
+
+            const startDate = new Date(today);
+            startDate.setDate(today.getDate() + diffToMonday); // 月曜日
+            
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6); // 日曜日
+
+            // 日付範囲の文字列を作成 (YYYY-MM-DD)
+            let weeklyTotal = 0;
+            let checkDate = new Date(startDate);
+            
+            // 月曜〜日曜までループして集計
+            for(let i=0; i<7; i++) {
+                const dStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth()+1).padStart(2,'0')}-${String(checkDate.getDate()).padStart(2,'0')}`;
+                
+                if (logs[dStr]) {
+                    logs[dStr].forEach(id => {
+                        const task = tasks.find(t => t.id === id);
+                        if(task) weeklyTotal += task.points;
+                    });
+                }
+                checkDate.setDate(checkDate.getDate() + 1);
+            }
+
+            // 表示用日付フォーマット (M/D)
+            const fmt = (d) => `${d.getMonth()+1}/${d.getDate()}`;
+            const rangeText = `${fmt(startDate)}〜${fmt(endDate)}`;
+            
+            // メッセージ作成
+            const text = `パパ！\n今週（${rangeText}）のお手伝いポイントは\n✨ 【 ${weeklyTotal}ポイント 】 ✨\nたまったよ！確認してね😊`;
+
+            // 共有
+            if (navigator.share) {
+                navigator.share({ title: '週間報告', text: text }).catch(console.error);
+            } else {
+                alert("メッセージをコピーしました！\n\n" + text);
+                navigator.clipboard.writeText(text);
+            }
+        }
+
+        // --- 以下、基本ロジック ---
+        function renderCalendar() {
+            document.getElementById('currentMonthLabel').innerText = `${currentYear}年 ${currentMonth + 1}月`;
             const firstDay = new Date(currentYear, currentMonth, 1).getDay();
             const lastDate = new Date(currentYear, currentMonth + 1, 0).getDate();
-            
             const container = document.getElementById('calendarDays');
             container.innerHTML = "";
-
-            // 空白セル
-            for(let i=0; i<firstDay; i++) {
-                container.innerHTML += `<div></div>`;
-            }
+            for(let i=0; i<firstDay; i++) container.innerHTML += `<div></div>`;
 
             const now = new Date();
             const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
             for(let d=1; d<=lastDate; d++) {
                 const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                
                 const dayLog = logs[dateStr] || [];
-                const hasPoints = dayLog.length > 0;
-                const isToday = (dateStr === todayStr);
-
                 const cell = document.createElement('div');
-                cell.className = `day-cell ${hasPoints ? 'has-points' : ''} ${isToday ? 'today' : ''}`;
+                cell.className = `day-cell ${dayLog.length > 0 ? 'has-points' : ''} ${dateStr === todayStr ? 'today' : ''}`;
+                cell.onclick = function() { openDayModal(dateStr, d); };
                 
-                // iPhone対応: onclickを関数でラップ
-                cell.onclick = function() { openDayModal(dateStr, d); }; 
-                
-                // 土日の色
                 const dayOfWeek = new Date(currentYear, currentMonth, d).getDay();
                 let colorStyle = "";
-                if(dayOfWeek === 0) colorStyle = "color:#ff6f61;"; // 日
-                if(dayOfWeek === 6) colorStyle = "color:#6fa3ff;"; // 土
+                if(dayOfWeek === 0) colorStyle = "color:#ff6f61;";
+                if(dayOfWeek === 6) colorStyle = "color:#6fa3ff;";
 
-                cell.innerHTML = `
-                    <span style="${colorStyle}">${d}</span>
-                    <div class="day-point-dot"></div>
-                `;
+                cell.innerHTML = `<span style="${colorStyle}">${d}</span><div class="day-point-dot"></div>`;
                 container.appendChild(cell);
             }
         }
 
-        // --- 月を変える ---
         function changeMonth(diff) {
             currentMonth += diff;
-            if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-            } else if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
-            }
-            renderCalendar();     // カレンダーを書き直す
-            updateTotalPoints();  // 合計ポイントも再計算する
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; } 
+            else if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            renderCalendar(); updateTotalPoints();
         }
 
-        // --- ポイント集計（ここが重要！） ---
         function updateTotalPoints() {
             let total = 0;
-            
-            // "2024-01" のような「年月」の文字を作る
             const targetMonthStr = `${currentYear}-${String(currentMonth+1).padStart(2, '0')}`;
-
-            // すべての記録を見て、今月のものだけ足し算する
             Object.keys(logs).forEach(dateStr => {
                 if (dateStr.startsWith(targetMonthStr)) {
-                    // 日付が今月と一致したら、その日のタスクを全部足す
-                    const taskIds = logs[dateStr];
-                    taskIds.forEach(id => {
+                    logs[dateStr].forEach(id => {
                         const task = tasks.find(t => t.id === id);
                         if (task) total += parseInt(task.points);
                     });
                 }
             });
-
-            // 画面に表示
             document.getElementById('totalPoints').innerText = total;
             document.getElementById('monthTitle').innerText = `${currentMonth + 1}月のポイント`;
         }
 
-        // --- 日別の入力画面を開く ---
         function openDayModal(dateStr, dayNum) {
             selectedDateStr = dateStr;
             document.getElementById('selectedDateLabel').innerText = `${currentMonth+1}月${dayNum}日 のやったこと`;
-            
             const container = document.getElementById('taskList');
             container.innerHTML = "";
-            
             const currentLog = logs[dateStr] || [];
-
             tasks.forEach(task => {
                 const isChecked = currentLog.includes(task.id);
                 const item = document.createElement('div');
                 item.className = 'checklist-item';
                 item.innerHTML = `
                     <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleTask(${task.id}, this.checked)">
-                    <div class="task-info">
-                        <span class="task-name">${task.name}</span>
-                        <span class="task-pts">${task.points} P</span>
-                    </div>
+                    <div class="task-info"><span class="task-name">${task.name}</span><span class="task-pts">${task.points} P</span></div>
                 `;
                 container.appendChild(item);
             });
-
             document.getElementById('dayModal').style.display = 'flex';
         }
 
         function toggleTask(taskId, isChecked) {
             if (!logs[selectedDateStr]) logs[selectedDateStr] = [];
-            
             if (isChecked) {
-                if (!logs[selectedDateStr].includes(taskId)) {
-                    logs[selectedDateStr].push(taskId);
-                }
+                if (!logs[selectedDateStr].includes(taskId)) logs[selectedDateStr].push(taskId);
             } else {
                 logs[selectedDateStr] = logs[selectedDateStr].filter(id => id !== taskId);
             }
-            
             localStorage.setItem('myLogs', JSON.stringify(logs));
-            updateTotalPoints(); // チェックしたら即座に合計を更新
-            renderCalendar();    // カレンダーのドットも更新
+            updateTotalPoints(); renderCalendar();
         }
 
-        // --- 設定画面 ---
         function openSettings() {
             const container = document.getElementById('settingsList');
             container.innerHTML = "";
-            tasks.forEach((task, index) => {
-                appendSettingRow(task.name, task.points);
-            });
+            tasks.forEach((task) => appendSettingRow(task.name, task.points));
             document.getElementById('settingsModal').style.display = 'flex';
         }
 
@@ -377,11 +394,7 @@
             const container = document.getElementById('settingsList');
             const div = document.createElement('div');
             div.className = 'setting-row';
-            div.innerHTML = `
-                <input type="text" placeholder="項目名" value="${name}" class="st-name">
-                <input type="number" placeholder="P" value="${points}" class="st-pts">
-                <button class="delete-btn" onclick="this.parentElement.remove()">🗑️</button>
-            `;
+            div.innerHTML = `<input type="text" placeholder="項目名" value="${name}" class="st-name"><input type="number" placeholder="P" value="${points}" class="st-pts"><button class="delete-btn" onclick="this.parentElement.remove()">🗑️</button>`;
             container.appendChild(div);
         }
 
@@ -393,13 +406,7 @@
             rows.forEach((row, idx) => {
                 const name = row.querySelector('.st-name').value;
                 const points = row.querySelector('.st-pts').value;
-                if (name && points) {
-                    newTasks.push({
-                        id: Date.now() + idx,
-                        name: name,
-                        points: parseInt(points)
-                    });
-                }
+                if (name && points) newTasks.push({ id: Date.now() + idx, name: name, points: parseInt(points) });
             });
             tasks = newTasks;
             localStorage.setItem('myTasks', JSON.stringify(tasks));
@@ -407,9 +414,7 @@
             updateTotalPoints();
         }
 
-        function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
-        }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     </script>
 </body>
 </html>
